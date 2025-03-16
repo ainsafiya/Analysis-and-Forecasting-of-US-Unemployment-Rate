@@ -1,0 +1,223 @@
+---
+title:  "MTH6139-Coursework 1" 
+subtitle: "Analysis and Forecasting of US Unemployment Rate"
+author: "Nurul Ain Safiya Mohd Affendi"
+date: "16 March 2025"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab 
+    highlight: tango
+---
+ 
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("images/QMlogo.png"),
+               alt = 'logo',
+               style = 'position:absolute; top:0; right:0; padding:10px; width:20%;')
+```
+
+# Section 1: Purpose of the project
+
+The purpose of this project is to analyze the historical patterns of the US unemployment rate. Through this analysis, I aim to identify whether the unemployment rate exhibits short-term fluctuations, long-term trends, or seasonal patterns. The findings from this analysis may pave the way for further exploration of the factors influencing the unemployment rate over time, such as economic policies or external events; however, this will not be the focus of the current project. Additionally, I applied Prophet to forecast future unemployment rates and assess whether the identified trends and seasonal patterns persist in the coming years.
+
+# Section 2: Obtaining the Dataset 
+
+Throughout this project, I will be using the**`UnempRate`** dataset for time series analysis and forecasting. This dataset contains monthly US unemployment rate, spanning from 1948 to 2016.
+
+To retrieve the data, I first loaded the **`astsa`** library and then converted the time series dataset into a data frame for easier manipulation and analysis.
+
+```{r}
+## Loading the library
+library(astsa) # load astsa package
+
+## Data Exploration
+data("UnempRate") # load dataset
+head(UnempRate) # displays the first six values
+class(UnempRate) # check the data type 
+length(UnempRate) # number of data points in dataset
+
+## Convert UnempRate to a Data Frame
+unemprate.df = data.frame(
+    Year=zoo::as.yearmon(time(UnempRate)),
+    Unemployment.Rate=UnempRate)
+head(unemprate.df) # displays the first six
+```
+
+# Section 3: Visual Inspection
+
+The purpose of this section is to identify the general pattern of the unemployment rate over the given time period. I am looking for any noticeable upward, downward, or irregular fluctuations. To achieve this, I have plotted the raw data below:
+
+```{r}
+plot(UnempRate, main = "US Unemployment Rate (1948 to 2016)", 
+     ylab = "Unemployment Rate (%)", xlab = "Year", col = "blue")
+```
+
+`>` The plot displays unemployment rate that fluctuates significantly over time, exhibit several peaks and troughs. It suggests that a simple linear trend most likely would not capture the complexity of the data.
+
+`>` The Unemployment Rate has a range between 2% to 11%
+
+`>` The early 1980s saw the biggest increase in unemployment, which may have been brought on by the Great Inflation.
+
+`>` During the Great Recession, which lasted from 2008 to 2010, there was another significant spike.
+
+`>` The unemployment rate likely has cyclical pattern that relates to economic cycle and possibly seasonal patterns.
+
+# Section 4: Trend Analysis
+
+To further continue the analysis, I will perform trend analysis to examine the long-term patterns and movements in the data.
+
+**Purpose**: In order to complement the most in-depth information obtained from the raw data, I want to identify a trend in this time series. Granular analysis requires raw data, but I believe that trend analysis is necessary to help reduce noise, simplify complexity, and determine the data's long-term direction. 
+
+## 4.1 Parametric Trend Analysis
+
+From the raw data plot, I can immediately tell that linear regression will be a poor fit due to the presence of pronounced peaks and troughs.
+
+Linear Regression is very unlikely since it does not capture the fluctuations and structural breaks in the data.
+
+I then considered that polynomial regression might fit the data better than a linear model. However, I suspected that it would still struggle to capture the patterns and sudden shifts. To verify this, I performed polynomial regression on the raw data using R, and the results are as follows: 
+
+```{r}
+# plot of raw data of US Unemployment Rate
+plot(UnempRate, main = "US Unemployment Rate (1948 to 2016)", 
+     ylab = "Unemployment Rate (%)", xlab = "Year", col = "blue")
+
+# plot of a 5th-degree polynomial regression
+model_poly <- lm(Unemployment.Rate ~ Year+I(Year^2)+I(Year^3)+I(Year^4)+I(Year^5), unemprate.df)
+lines(unemprate.df$Year, fitted(model_poly), type = 'l', col = "red")
+```
+
+Based on the plots, it is evident that the polynomial curve does not fit the observed data points well.
+
+## 4.2 Non-Parametric Trend Analysis
+
+Given the limitations of parametric methods, I decided to use a non-parametric approach. This method does not assume a specific functional form for the trend, making it more flexible and better suited for complex data. I will be utilizing Spencer's 15-point moving average.
+
+#### Spencer's 15-point Moving Average
+
+This filter is a non-parametric smoothing technique to remove short-term fluctuations and highlight the underlying trend. To do so, I load the **`signal`** package to apply digital filters and plot the smoothed line. 
+
+```{r}
+# load the signal package
+library(signal)
+
+# plot of the raw data
+plot(UnempRate, main = "US Unemployment Rate (1948 to 2016)", 
+     ylab = "Unemployment Rate (%)", xlab = "Year", col = "blue")
+
+# create the Spence filter
+spencer.filter <- spencerFilter()
+head(spencer.filter) # view the filter weights
+
+# apply the Spencer filter to the US unemployment rate
+spencer_trend <- filter(spencer.filter, UnempRate)
+head(spencer_trend)
+
+# add the smoothed trend from Spencer filter
+lines(unemprate.df$Year, spencer_trend, type = "l", col = "red", lwd = 2)
+legend("topright", legend = c("Original Data", "Spencer Filter"), 
+       col = c("blue", "red"), lty = 1, lwd = 2, cex = 0.5)
+```
+
+## 4.3 Conclusion: Trend Analysis
+
+**The Parametric Trend**: Linear and polynomial model are not well-suited for capturing the intricate, non-linear patterns in the unemployment rate.
+
+**The Non-Parametric Trend**: The Spencer-filtered trend does not reveal a clear long-term direction, suggesting that the underlying trend may be obscured by significant fluctuations or other components in the data.
+
+# Section 5: Seasonality Analysis
+
+The Spencer filter plot looks noisy and does not show a clear rising or falling direction. Hence, I believe the data might not have a significant long-term trend.
+
+Since the filtered plot still shows short-term fluctuations, I suspect that the data may have a strong cyclical or seasonal component rather than a long-term trend. To confirm this, I conducted a seasonal analysis
+
+## 5.1: Decomposition of the Time Series
+
+I use classical decomposition to separate trend, seasonality and residual noise. 
+
+```{r}
+plot(stats::decompose(UnempRate))
+```
+
+## 5.2: Interpreting the Plot
+
+The plot split into four sections.
+
+`>` The first section is the original time series from the dataset **`UnempRate`**. 
+
+`>` The second section is the trend component which shows the long-term movement in the data. (discussed in Section 4)
+
+`>` The third panel is the Seasonal Component which extracts the repeating seasonal patterns in the data. I observed a regular wave-like pattern with similar peaks and troughs each year. 
+
+## 5.3: Conclusion: Seasonal Analysis
+
+`>` Since the data is collected monthly, the seasonal pattern repeats every year. From the plot, the seasonal pattern has clear peaks and dips at the same time every year, it means unemployment follows a predictable pattern over time.
+
+`>` There are several plausible real-world explanations for the observed seasonality in the dataset. Some of them that I can think of are:
+
+    + One key factor could be economic cycles, where hiring and layoff fluctuate in response to broader economic trends, such as periods of growth or recession. 
+  
+    + Additionally, the education cycle may play a role, as an influx of graduates entering the job market during specific months could lead to temporary increases in unemployment.
+  
+    + Another significant contributor is seasonal employment, where industries like retail experience higher demand during certain periods, such as December, when holiday shopping drives increased hiring. These factors collectively highlight how economic, educational, and industry-specific cycles can influence seasonal patterns in unemployment data.  
+
+# Section 6: Forecasting Future Unemployment Rate using Meta's Prophet
+
+I decided to use Prophet to forecast the future unemployment rate in order to better understand the underlying trends and seasonal patterns in the data. 
+
+By leveraging Prophet's ability to model both trend changes and recurring seasonal fluctuations, I aim to generate more accurate predictions for how the unemployment rate might evolve over the coming months and years. This approach will allow me to capture the complexities of the data and provide a clearer picture of future unemployment trends.
+
+## 6.1: Predicting using Meta's Prophet and Plot of the results. 
+
+```{r}
+library(zoo)
+library(prophet)
+unemployment_data <- data.frame(
+    ds = as.Date(as.yearmon(time(UnempRate))),  
+    y = UnempRate
+)
+
+# Fit the Prophet model
+prophet_model <- prophet(unemployment_data)
+
+# Create a future dataframe for 108 months ahead (covering from 2017 to 2025)
+future_dates <- make_future_dataframe(prophet_model, periods = 108, freq = "month")
+
+# Make predictions
+predictions <- predict(prophet_model, future_dates)
+
+# Plot the forecast
+plot(prophet_model, predictions)
+
+```
+
+The plot shows multiple different lines on the same plot so I plotted the trend and seasonality component separately to clearly see each component and understand it better
+
+```{r}
+prophet_plot_components(prophet_model,predictions)
+```
+
+## 6.2: Conclusion on Prophet's predictions.
+
+### 6.2.1: Comments on Trend
+
+1. The trend I observed from Prophet is that there is an increasing trend from 1948 to 1980, a dip from the 1980s to the 2000s, and then another increase from 2000 onwards. Prophet fits these trends based on the data it was trained on.
+
+2. Prophet predicts a continuing increase in US unemployment rate which is interesting to me because I would expect some downward trend as well considering there are peaks and dips in the trend prior to 2016. 
+
+3. However, Prophet doesn’t account for sudden shifts like pandemics or policy changes unless they're explicitly added into the model. This is a limitation, and it’s logical that the model might produce somewhat inaccurate projections if the post-2016 period deviates from past patterns.
+
+4. What I find particularly interesting is that while Prophet identifies a clear trend, the Spencer-filtered plot doesn’t show the same. This is likely because Prophet looks for long-term patterns in the data and smooths out short-term fluctuations, which allows it to reveal an overall trend. In contrast, the Spencer filter focuses on eliminating short-term variations, which emphasizes smaller fluctuations and makes it harder to spot a clear long-term trend.
+
+### 6.2.2: Comments on Seasonality
+
+1. I noticed that Prophet's seasonality prediction shows fluctuations, with a particularly large peak around March. This suggests that, based on historical data, there is a strong seasonal effect during this month. 
+
+2. Interestingly, similar magnitude fluctuations appear throughout other months as well, indicating that there are consistent patterns in the data across the year, even if some months, like March, stand out more. These seasonal variations could be tied to factors like economic cycles, policy changes, or other yearly events that consistently impact the unemployment rate.
+
+
+
+
+
+
+
